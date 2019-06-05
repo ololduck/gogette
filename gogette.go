@@ -5,6 +5,7 @@ import (
 	gnet "gogette/net"
 	"net"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -37,13 +38,24 @@ func handleConnection(conn net.Conn) {
 			fmt.Printf("Got an issue while reading: %s\n", err)
 			break
 		}
-		request := gnet.CreateRequestFromBytes(buffer)
-		fmt.Printf("Generated Request Object: %s\n", request)
-		response := gnet.NewResponse(*gnet.OK)
-		response.Headers["Content-Type"] = "text/plain" // we just send the request back.
-		response.Content = append(response.Content, []uint8("Here's what you sent: \n")...)
-		response.Content = append(response.Content, request.Content...)
-		_, err = conn.Write(response.ToBytes())
+		request, err := gnet.CreateRequestFromBytes(buffer)
+		var response *gnet.Response
+		if err != nil {
+			// Then, create a bad request response
+			response = gnet.NewResponse(*gnet.BAD_REQUEST)
+			response.Headers["Content-Type"] = "text/plain"
+			response.Content = append(response.Content, []uint8("You sent a request I was unable to understand")...)
+			response.Headers["Content-Length"] = strconv.Itoa(len(request.Content))
+		} else {
+			fmt.Printf("Generated Request Object: %s\n", request)
+			response = gnet.NewResponse(*gnet.OK)
+			response.Headers["Content-Type"] = "text/plain" // we just send the request back.
+			response.Headers["Content-Length"] = strconv.Itoa(len(request.Content))
+			response.Content = append(response.Content, []uint8("Here's what you sent: \n")...)
+			response.Content = append(response.Content, request.Content...)
+		}
+		fmt.Printf("Response object: %s", *response)
+		_, err = conn.Write(*response.ToBytes())
 		if err != nil {
 			fmt.Printf("Got an issue while writing: %s\n", err)
 			break
